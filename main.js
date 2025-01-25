@@ -126,6 +126,95 @@ function createShape() {
   return element;
 }
 
+// Audio effect setup
+const soundEffects = {
+  buffers: [],
+  sources: [],
+  initialized: false
+};
+
+async function initSoundEffects() {
+  if (!audioContext) return;
+  
+  const soundFiles = [
+    'Sound_of_a_block_exp.mp3',
+    'Sound_of_a_block_exp (1).mp3',
+    'Sound_of_a_block_exp (2).mp3'
+  ];
+  
+  try {
+    soundEffects.buffers = await Promise.all(soundFiles.map(async file => {
+      const response = await fetch(file);
+      const arrayBuffer = await response.arrayBuffer();
+      return await audioContext.decodeAudioData(arrayBuffer);
+    }));
+    soundEffects.initialized = true;
+  } catch (error) {
+    console.error('Error loading sound effects:', error);
+  }
+}
+
+function playScoreSound(combo) {
+  if (!soundEffects.initialized || !audioContext) return;
+  
+  // Clean up old sources
+  soundEffects.sources = soundEffects.sources.filter(source => {
+    if (source.finished) return false;
+    return true;
+  });
+  
+  const source = audioContext.createBufferSource();
+  const gainNode = audioContext.createGain();
+  const stereoPanner = audioContext.createStereoPanner();
+  const filter = audioContext.createBiquadFilter();
+  
+  // Choose sound based on combo
+  const soundIndex = Math.min(Math.floor(combo / 3), soundEffects.buffers.length - 1);
+  source.buffer = soundEffects.buffers[soundIndex];
+  
+  // Set up audio processing
+  filter.type = 'lowpass';
+  filter.frequency.value = 1000 + (combo * 200);
+  
+  gainNode.gain.value = 0.3; // Base volume
+  
+  // Random stereo position
+  stereoPanner.pan.value = (Math.random() * 2 - 1) * 0.5;
+  
+  // Pitch shifting based on combo
+  source.playbackRate.value = 0.8 + (combo * 0.1);
+  
+  // Connect audio nodes
+  source.connect(filter);
+  filter.connect(stereoPanner);
+  stereoPanner.connect(gainNode);
+  gainNode.connect(audioContext.destination);
+  
+  // Add echo effect
+  const delay = audioContext.createDelay();
+  const feedbackGain = audioContext.createGain();
+  
+  delay.delayTime.value = 0.2;
+  feedbackGain.gain.value = 0.3;
+  
+  gainNode.connect(delay);
+  delay.connect(feedbackGain);
+  feedbackGain.connect(delay);
+  delay.connect(audioContext.destination);
+  
+  // Envelope
+  gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+  gainNode.gain.linearRampToValueAtTime(0.3, audioContext.currentTime + 0.05);
+  gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 1.5);
+  
+  source.start();
+  source.onended = () => {
+    source.finished = true;
+  };
+  
+  soundEffects.sources.push(source);
+}
+
 // Game mechanics functions
 function handleShapeClick(e) {
   if (!state.gameActive || state.power < 10) return;
@@ -187,6 +276,8 @@ function handleShapeClick(e) {
   document.getElementById('dynamic-content').appendChild(newShape);
   state.elements = state.elements.filter(e => e !== element);
   state.elements.push(newShape);
+  
+  playScoreSound(state.combo);
   
   updateUI();
   
@@ -330,7 +421,10 @@ function levelUp() {
 
 // Initialize the playground
 async function init() {
-  await initAudio();
+  await Promise.all([
+    initAudio(),
+    initSoundEffects()
+  ]);
   
   const levelIndicator = document.createElement('div');
   levelIndicator.className = 'level-indicator';
