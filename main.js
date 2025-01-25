@@ -340,6 +340,77 @@ function levelUp() {
   setTimeout(() => feedback.remove(), 2000);
 }
 
+function createVisualizer() {
+  const visualizerGroup = document.getElementById('visualizer');
+  visualizerGroup.innerHTML = '';
+  
+  // Create frequency bars
+  const numBars = 32;
+  const barWidth = 20;
+  const barGap = 5;
+  const totalWidth = (barWidth + barGap) * numBars;
+  const startX = (800 - totalWidth) / 2;
+  
+  for (let i = 0; i < numBars; i++) {
+    const bar = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    bar.setAttribute("x", startX + i * (barWidth + barGap));
+    bar.setAttribute("y", 500);
+    bar.setAttribute("width", barWidth);
+    bar.setAttribute("height", 0);
+    bar.setAttribute("class", "visualizer-bar");
+    visualizerGroup.appendChild(bar);
+  }
+  
+  // Add spectrum glow filter
+  const defs = document.querySelector('defs');
+  const filter = document.createElementNS("http://www.w3.org/2000/svg", "filter");
+  filter.setAttribute("id", "glow");
+  
+  const blur = document.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
+  blur.setAttribute("stdDeviation", "3");
+  blur.setAttribute("result", "coloredBlur");
+  
+  const merge = document.createElementNS("http://www.w3.org/2000/svg", "feMerge");
+  const mergeNode1 = document.createElementNS("http://www.w3.org/2000/svg", "feMergeNode");
+  mergeNode1.setAttribute("in", "coloredBlur");
+  const mergeNode2 = document.createElementNS("http://www.w3.org/2000/svg", "feMergeNode");
+  mergeNode2.setAttribute("in", "SourceGraphic");
+  
+  merge.appendChild(mergeNode1);
+  merge.appendChild(mergeNode2);
+  filter.appendChild(blur);
+  filter.appendChild(merge);
+  defs.appendChild(filter);
+}
+
+function updateVisualizer() {
+  if (!analyser) return;
+  
+  const bars = document.querySelectorAll('.visualizer-bar');
+  const bufferLength = analyser.frequencyBinCount;
+  const dataArray = new Uint8Array(bufferLength);
+  analyser.getByteFrequencyData(dataArray);
+  
+  const step = Math.floor(bufferLength / bars.length);
+  
+  bars.forEach((bar, index) => {
+    const dataIndex = index * step;
+    const value = dataArray[dataIndex];
+    const height = (value / 255) * 100;
+    const hue = (index / bars.length) * 360;
+    
+    bar.setAttribute("height", height);
+    bar.setAttribute("y", 500 - height);
+    bar.setAttribute("fill", `hsla(${hue}, 80%, 60%, 0.8)`);
+    
+    if (value > 200) {
+      bar.classList.add('spectrum-glow');
+    } else {
+      bar.classList.remove('spectrum-glow');
+    }
+  });
+}
+
 // Initialize the playground
 async function init() {
   await initAudio();
@@ -510,7 +581,7 @@ function onBeat() {
 function triggerBassEffect() {
   const elements = state.elements;
   elements.forEach(element => {
-    element.style.filter = `hue-rotate(${Math随机() * 360}deg)`;
+    element.style.filter = `hue-rotate(${Math.random() * 360}deg)`;
     setTimeout(() => element.style.filter = '', 300);
   });
 }
