@@ -2,22 +2,28 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Playground</title>
+  <title>Shape Clicker Game</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <!-- AI Playground Container -->
   <div id="playground">
     <div class="canvas-area">
-      <!-- SVG canvas for AI generated content -->
       <svg id="canvas" viewBox="0 0 800 600">
-        <!-- AI will add/modify elements here -->
         <g id="dynamic-content"></g>
       </svg>
     </div>
     
     <div class="info-panel">
-      <div id="status">Initialized and ready for next iteration...</div>
+      <div id="status">Click shapes to score points!</div>
+      <div class="score">Score: 0</div>
+      <div class="power-meter">
+        <div class="power-fill"></div>
+      </div>
+      <div class="controls">
+        <button class="btn" onclick="window.playgroundState.gameActive = !window.playgroundState.gameActive">
+          Pause/Resume
+        </button>
+      </div>
     </div>
   </div>
 
