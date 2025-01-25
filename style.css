@@ -101,3 +101,18 @@ body {
   transform-origin: left;
   transition: transform 0.3s;
 }
+
+.combo {
+  font-size: 1.2em;
+  color: #ffcc00;
+  text-align: center;
+  text-shadow: 0 0 10px rgba(255,204,0,0.5);
+  transition: opacity 0.3s;
+  margin-top: 10px;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px) rotate(-5deg); }
+  75% { transform: translateX(5px) rotate(5deg); }
+}
