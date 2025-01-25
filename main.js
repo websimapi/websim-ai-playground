@@ -1,3 +1,4 @@
+// Global state
 const state = {
   iteration: 5,
   elements: [],
@@ -42,7 +43,7 @@ const state = {
   }
 };
 
-// Generate random position within SVG bounds
+// Utility functions
 function randomPosition() {
   return {
     x: Math.random() * 700 + 50,
@@ -50,7 +51,6 @@ function randomPosition() {
   };
 }
 
-// Create a star shape points
 function createStarPoints(cx, cy, points = 5, outerRadius = 30, innerRadius = 15) {
   let str = '';
   for (let i = 0; i < points * 2; i++) {
@@ -63,24 +63,21 @@ function createStarPoints(cx, cy, points = 5, outerRadius = 30, innerRadius = 15
   return str.trim();
 }
 
-// Create diamond points
 function createDiamondPoints(cx, cy, size = 30) {
   return `${cx},${cy-size} ${cx+size},${cy} ${cx},${cy+size} ${cx-size},${cy}`;
 }
 
-// Create a random shape with game mechanics
-const originalCreateShape = function createShape() {
-  // Enhanced shape creation with preparation for future features
+// Core shape creation function
+function createShape() {
   const shape = state.config.shapes[Math.floor(Math.random() * state.config.shapes.length)];
   const color = state.config.colors[Math.floor(Math.random() * state.config.colors.length)];
   const pos = randomPosition();
   const points = Math.floor(Math.random() * 30) + 10;
   
-  // Future: Add special properties for power-ups and events
   const specialProperties = {
-    isPowerup: Math.random() < 0.05, // 5% chance for future power-up implementation
+    isPowerup: Math.random() < 0.05,
     specialEffect: null,
-    durability: 1, // Future: Some shapes might require multiple clicks
+    durability: 1,
     chainReaction: false,
     pointMultiplier: 1
   };
@@ -113,11 +110,8 @@ const originalCreateShape = function createShape() {
   const randomAnim = animations[Math.floor(Math.random() * animations.length)];
   element.style.animation = `${randomAnim} ${2 / state.config.speed}s infinite`;
   
-  if (state.config.interactions) {
-    element.addEventListener('click', handleShapeClick);
-  }
+  element.addEventListener('click', handleShapeClick);
   
-  // Store special properties for future use
   element.dataset.specialProperties = JSON.stringify(specialProperties);
   
   if (Math.random() < state.config.powerupChance) {
@@ -125,18 +119,83 @@ const originalCreateShape = function createShape() {
     element.dataset.powerup = 'true';
   }
   
-  return element;
-};
-
-createShape = function() {
-  const element = originalCreateShape();
-  
   // Add music-reactive properties
   element.style.transition = 'all 0.1s ease';
   element.dataset.musicReactive = 'true';
   
   return element;
-};
+}
+
+// Game mechanics functions
+function handleShapeClick(e) {
+  if (!state.gameActive || state.power < 10) return;
+  
+  if (state.audio.beatDetected) {
+    e.target.classList.add('rhythm-perfect');
+    state.config.pointsPerClick *= 2;
+    setTimeout(() => {
+      state.config.pointsPerClick /= 2;
+    }, 100);
+  }
+  
+  const element = e.target;
+  
+  if (element.dataset.powerup === 'true') {
+    handlePowerup(element);
+  }
+  
+  const basePoints = parseInt(element.getAttribute('data-points'));
+  const comboMultiplier = 1 + (state.combo * 0.1);
+  const points = Math.floor(basePoints * comboMultiplier);
+  
+  state.score += points;
+  state.power = Math.max(0, state.power - 10);
+  
+  // Visual feedback
+  const feedback = document.createElementNS("http://www.w3.org/2000/svg", "text");
+  const pos = {
+    x: element.getAttribute('data-shape') === 'circle' ? parseFloat(element.getAttribute('cx')) : parseFloat(element.getAttribute('x') || element.points[0].x),
+    y: element.getAttribute('data-shape') === 'circle' ? parseFloat(element.getAttribute('cy')) : parseFloat(element.getAttribute('y') || element.points[0].y)
+  };
+  
+  feedback.setAttribute("x", pos.x);
+  feedback.setAttribute("y", pos.y);
+  feedback.setAttribute("fill", state.combo > 1 ? "#ffcc00" : "#00ff99");
+  feedback.setAttribute("font-size", state.combo > 1 ? "24" : "20");
+  feedback.setAttribute("text-anchor", "middle");
+  feedback.textContent = `+${points}${state.combo > 1 ? ` x${state.combo}` : ''}`;
+  
+  document.getElementById('dynamic-content').appendChild(feedback);
+  
+  feedback.animate([
+    { opacity: 1, transform: 'translateY(0)' },
+    { opacity: 0, transform: 'translateY(-50px)' }
+  ], {
+    duration: 1000,
+    easing: 'ease-out'
+  }).onfinish = () => feedback.remove();
+  
+  clearTimeout(state.comboTimeout);
+  state.combo++;
+  state.comboTimeout = setTimeout(() => {
+    state.combo = 0;
+    updateUI();
+  }, state.config.comboTimeout);
+  
+  element.remove();
+  const newShape = createShape();
+  document.getElementById('dynamic-content').appendChild(newShape);
+  state.elements = state.elements.filter(e => e !== element);
+  state.elements.push(newShape);
+  
+  updateUI();
+  
+  if (state.score >= state.level * state.config.levelUpThreshold) {
+    levelUp();
+  }
+  
+  checkAchievements();
+}
 
 function handlePowerup(element) {
   const types = ['timeSlowdown', 'doublePoints', 'powerRefill', 'chainReaction'];
@@ -204,85 +263,6 @@ function showAchievement(name) {
   setTimeout(() => achievement.remove(), 3000);
 }
 
-const originalHandleShapeClick = function handleShapeClick(e) {
-  if (!state.gameActive || state.power < 10) return;
-  
-  const element = e.target;
-  
-  if (element.dataset.powerup === 'true') {
-    handlePowerup(element);
-  }
-  
-  // Original click handling
-  const basePoints = parseInt(element.getAttribute('data-points'));
-  const comboMultiplier = 1 + (state.combo * 0.1);
-  const points = Math.floor(basePoints * comboMultiplier);
-  
-  state.score += points;
-  state.power = Math.max(0, state.power - 10);
-  
-  // Visual feedback
-  const feedback = document.createElementNS("http://www.w3.org/2000/svg", "text");
-  const pos = {
-    x: element.getAttribute('data-shape') === 'circle' ? parseFloat(element.getAttribute('cx')) : parseFloat(element.getAttribute('x') || element.points[0].x),
-    y: element.getAttribute('data-shape') === 'circle' ? parseFloat(element.getAttribute('cy')) : parseFloat(element.getAttribute('y') || element.points[0].y)
-  };
-  
-  feedback.setAttribute("x", pos.x);
-  feedback.setAttribute("y", pos.y);
-  feedback.setAttribute("fill", state.combo > 1 ? "#ffcc00" : "#00ff99");
-  feedback.setAttribute("font-size", state.combo > 1 ? "24" : "20");
-  feedback.setAttribute("text-anchor", "middle");
-  feedback.textContent = `+${points}${state.combo > 1 ? ` x${state.combo}` : ''}`;
-  
-  document.getElementById('dynamic-content').appendChild(feedback);
-  
-  // Animate and remove feedback
-  feedback.animate([
-    { opacity: 1, transform: 'translateY(0)' },
-    { opacity: 0, transform: 'translateY(-50px)' }
-  ], {
-    duration: 1000,
-    easing: 'ease-out'
-  }).onfinish = () => feedback.remove();
-  
-  // Update combo system
-  clearTimeout(state.comboTimeout);
-  state.combo++;
-  state.comboTimeout = setTimeout(() => {
-    state.combo = 0;
-    updateUI();
-  }, state.config.comboTimeout);
-  
-  // Replace clicked shape
-  element.remove();
-  const newShape = createShape();
-  document.getElementById('dynamic-content').appendChild(newShape);
-  state.elements = state.elements.filter(e => e !== element);
-  state.elements.push(newShape);
-  
-  updateUI();
-  
-  // Check for level up
-  if (state.score >= state.level * state.config.levelUpThreshold) {
-    levelUp();
-  }
-  
-  checkAchievements();
-};
-
-handleShapeClick = function(e) {
-  if (state.audio.beatDetected) {
-    e.target.classList.add('rhythm-perfect');
-    state.config.pointsPerClick *= 2;
-    setTimeout(() => {
-      state.config.pointsPerClick /= 2;
-    }, 100);
-  }
-  
-  originalHandleShapeClick(e);
-};
-
 // Enhanced game loop with preparation for future features
 function gameLoop() {
   if (!state.gameActive) return;
@@ -349,7 +329,9 @@ function levelUp() {
 }
 
 // Initialize the playground
-const originalInit = function init() {
+async function init() {
+  await initAudio();
+  
   const levelIndicator = document.createElement('div');
   levelIndicator.className = 'level-indicator';
   document.body.appendChild(levelIndicator);
@@ -369,12 +351,7 @@ const originalInit = function init() {
   
   gameLoop();
   updateUI();
-};
-
-init = async function() {
-  await initAudio();
-  originalInit();
-};
+}
 
 let audioContext;
 let analyser;
