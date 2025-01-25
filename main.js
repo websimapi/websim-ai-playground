@@ -33,6 +33,25 @@ const state = {
       "Combo Master": 500,
       "Power Player": 1000,
       "Shape Shifter": 2000
+    },
+    powerupTypes: ['timeSlow', 'scoreMultiplier', 'powerRefill', 'chainReaction', 'goldRush', 'shapeBurst'],
+    musicEvents: {
+      dropTime: 30, // seconds into music
+      active: false,
+      lastIntensity: 0
+    },
+    particleEffects: true,
+    maxMultiplier: 10,
+    specialModes: {
+      frenzy: false,
+      rainbow: false,
+      megaChain: false
+    },
+    dynamicDifficulty: {
+      baseSpeed: 1.6,
+      speedMultiplier: 1,
+      spawnRate: 1000,
+      complexityLevel: 1
     }
   },
   audio: {
@@ -289,24 +308,130 @@ function handleShapeClick(e) {
 }
 
 function handlePowerup(element) {
-  const types = ['timeSlowdown', 'doublePoints', 'powerRefill', 'chainReaction'];
-  const type = types[Math.floor(Math.random() * types.length)];
+  const type = element.dataset.powerupType || state.config.powerupTypes[Math.floor(Math.random() * state.config.powerupTypes.length)];
   
-  switch(type) {
-    case 'timeSlowdown':
-      state.config.speed *= 0.5;
-      setTimeout(() => state.config.speed *= 2, 5000);
-      break;
-    case 'doublePoints':
-      state.config.pointsPerClick *= 2;
-      setTimeout(() => state.config.pointsPerClick /= 2, 5000);
-      break;
-    case 'powerRefill':
-      state.power = 100;
-      break;
-    case 'chainReaction':
+  const effects = {
+    timeSlow: () => {
+      state.config.dynamicDifficulty.speedMultiplier *= 0.5;
+      addTimedEffect('Time Dilation', 8000, () => {
+        state.config.dynamicDifficulty.speedMultiplier *= 2;
+      });
+    },
+    scoreMultiplier: () => {
+      state.config.pointsPerClick *= 3;
+      addTimedEffect('Triple Score!', 10000, () => {
+        state.config.pointsPerClick /= 3;
+      });
+    },
+    powerRefill: () => {
+      state.power = 150; // Overcharge!
+      createParticleExplosion(element, '#00ff99', 20);
+    },
+    chainReaction: () => {
+      state.specialModes.megaChain = true;
+      state.config.chainReactionRadius *= 2;
       triggerChainReaction(element);
-      break;
+      setTimeout(() => {
+        state.specialModes.megaChain = false;
+        state.config.chainReactionRadius /= 2;
+      }, 5000);
+    },
+    goldRush: () => {
+      state.specialModes.frenzy = true;
+      document.getElementById('canvas').classList.add('gold-rush');
+      state.config.pointsPerClick *= 5;
+      spawnBonusShapes(10);
+      setTimeout(() => {
+        state.specialModes.frenzy = false;
+        document.getElementById('canvas').classList.remove('gold-rush');
+        state.config.pointsPerClick /= 5;
+      }, 12000);
+    },
+    shapeBurst: () => {
+      const burstCount = 8;
+      for (let i = 0; i < burstCount; i++) {
+        setTimeout(() => {
+          const shape = createShape();
+          shape.classList.add('power-up');
+          document.getElementById('dynamic-content').appendChild(shape);
+          state.elements.push(shape);
+        }, i * 200);
+      }
+    }
+  };
+
+  effects[type]();
+  createPowerupText(element, type);
+}
+
+function createPowerupText(element, type) {
+  const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+  const pos = getElementPosition(element);
+  text.setAttribute("x", pos.x);
+  text.setAttribute("y", pos.y);
+  text.setAttribute("fill", "#ffcc00");
+  text.setAttribute("font-size", "24");
+  text.setAttribute("text-anchor", "middle");
+  text.textContent = type.replace(/([A-Z])/g, ' $1').trim();
+  
+  document.getElementById('dynamic-content').appendChild(text);
+  text.animate([
+    { opacity: 1, transform: 'translateY(0)' },
+    { opacity: 0, transform: 'translateY(-50px)' }
+  ], {
+    duration: 1500,
+    easing: 'ease-out'
+  }).onfinish = () => text.remove();
+}
+
+function addTimedEffect(name, duration, cleanup) {
+  const effect = document.createElement('div');
+  effect.className = 'timed-effect';
+  effect.innerHTML = `
+    <span>${name}</span>
+    <div class="timer-bar"></div>
+  `;
+  document.body.appendChild(effect);
+  
+  effect.querySelector('.timer-bar').animate([
+    { width: '100%' },
+    { width: '0%' }
+  ], {
+    duration,
+    easing: 'linear'
+  });
+  
+  setTimeout(() => {
+    effect.remove();
+    cleanup();
+  }, duration);
+}
+
+function createParticleExplosion(element, color, count) {
+  const pos = getElementPosition(element);
+  for (let i = 0; i < count; i++) {
+    const particle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    const angle = (i / count) * Math.PI * 2;
+    particle.setAttribute("cx", pos.x);
+    particle.setAttribute("cy", pos.y);
+    particle.setAttribute("r", "3");
+    particle.setAttribute("fill", color);
+    
+    document.getElementById('dynamic-content').appendChild(particle);
+    
+    const distance = 50 + Math.random() * 50;
+    const duration = 1000 + Math.random() * 500;
+    
+    particle.animate([
+      { transform: 'translate(0, 0)', opacity: 1 },
+      { 
+        transform: `translate(${Math.cos(angle) * distance}px, ${Math.sin(angle) * distance}px)`,
+        opacity: 0 
+      }
+    ], {
+      duration,
+      easing: 'ease-out'
+    }).onfinish = () => particle.remove();
   }
 }
 
@@ -354,41 +479,66 @@ function showAchievement(name) {
   setTimeout(() => achievement.remove(), 3000);
 }
 
-// Enhanced game loop with preparation for future features
+// Enhanced game loop with music sync
 function gameLoop() {
   if (!state.gameActive) return;
+  
+  // Music-based events
+  if (audioContext && audioSource && audioSource.context.currentTime > state.config.musicEvents.dropTime) {
+    if (!state.config.musicEvents.active) {
+      state.config.musicEvents.active = true;
+      activateIntenseModeTransition();
+    }
+    
+    // Dynamic difficulty based on music intensity
+    const intensity = (state.audio.bassLevel + state.audio.midLevel) / 2;
+    const intensityDelta = intensity - state.config.musicEvents.lastIntensity;
+    
+    if (intensityDelta > 0.3) {
+      spawnBonusShapes(Math.floor(intensity * 5));
+    }
+    
+    state.config.dynamicDifficulty.speedMultiplier = 1 + (intensity * 0.5);
+    state.config.musicEvents.lastIntensity = intensity;
+  }
+  
+  // Score-based progression
+  const scoreThresholds = [1000, 2500, 5000, 10000];
+  const currentThreshold = scoreThresholds.find(t => state.score < t) || scoreThresholds[scoreThresholds.length - 1];
+  
+  state.config.powerupChance = 0.02 + (state.score / currentThreshold) * 0.03;
+  state.config.complexity = Math.min(10, 4 + Math.floor(state.score / 1000));
   
   // Power management
   state.power = Math.min(100, state.power + state.config.powerRegenRate);
   updateUI();
   
-  // Future: Special event timing system
-  const eventTriggerChance = state.config.specialEventChance; // 
-  if (Math.random() < eventTriggerChance) {
-    // Future: Trigger special events
-    console.log('Special event ready to trigger!');
-  }
-  
-  // Future: Power-up spawn system
-  const powerupSpawnChance = state.config.powerupChance; // 
-  if (Math.random() < powerupSpawnChance) {
-    // Future: Spawn power-up
-    console.log('Power-up ready to spawn!');
-  }
-  
-  // Random events
-  if (Math.random() < 0.1) {
-    const randomElement = state.elements[Math.floor(Math.random() * state.elements.length)];
-    if (randomElement) {
-      randomElement.style.animation = 'none';
-      randomElement.offsetHeight; // Trigger reflow
-      const animations = ['pulse', 'spin', 'bounce', 'wobble', 'shake'];
-      const randomAnim = animations[Math.floor(Math.random() * animations.length)];
-      randomElement.style.animation = `${randomAnim} ${2 / state.config.speed}s infinite`;
-    }
-  }
-  
   requestAnimationFrame(gameLoop);
+}
+
+function activateIntenseModeTransition() {
+  const flash = document.createElement('div');
+  flash.className = 'screen-flash';
+  document.body.appendChild(flash);
+  
+  setTimeout(() => {
+    flash.remove();
+    document.getElementById('canvas').classList.add('intense-mode');
+    spawnBonusShapes(15);
+  }, 500);
+}
+
+function spawnBonusShapes(count) {
+  for (let i = 0; i < count; i++) {
+    setTimeout(() => {
+      if (state.elements.length < state.config.maxElements * 1.5) {
+        const shape = createShape();
+        shape.classList.add('bonus-shape');
+        document.getElementById('dynamic-content').appendChild(shape);
+        state.elements.push(shape);
+      }
+    }, i * 100);
+  }
 }
 
 // Update UI elements
