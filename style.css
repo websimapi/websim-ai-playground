@@ -38,4 +38,9 @@ body {
   font-size: 0.9em;
   color: #0f0;
   font-family: monospace;
+  margin-bottom: 15px;
+}
+
+#canvas * {
+  transform-origin: center;
 }
