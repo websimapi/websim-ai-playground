@@ -2,13 +2,23 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Shape Clicker Game - Enhanced Edition</title>
+  <title>Shape Clicker Game - Musical Edition</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div id="playground">
     <div class="canvas-area">
       <svg id="canvas" viewBox="0 0 800 600">
+        <defs>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+            <feMerge>
+              <feMergeNode in="coloredBlur"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+        </defs>
+        <g id="visualizer"></g>
         <g id="dynamic-content"></g>
       </svg>
     </div>
@@ -27,6 +37,10 @@
         <button class="btn" onclick="window.playgroundState.init()">
           Restart Game
         </button>
+        <div class="volume-control">
+          <label for="volume">Music Volume</label>
+          <input type="range" id="volume" min="0" max="1" step="0.1" value="0.5">
+        </div>
       </div>
     </div>
   </div>
