@@ -10,12 +10,16 @@
     <div class="canvas-area">
       <svg id="canvas" viewBox="0 0 800 600">
         <defs>
-          <filter id="glow">
-            <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+          <filter id="spectrum-glow">
+            <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
             <feMerge>
               <feMergeNode in="coloredBlur"/>
               <feMergeNode in="SourceGraphic"/>
             </feMerge>
+          </filter>
+          <filter id="wave">
+            <feTurbulence type="fractalNoise" baseFrequency="0.01 0.01" numOctaves="1" result="noise" />
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="5" />
           </filter>
         </defs>
         <g id="visualizer"></g>

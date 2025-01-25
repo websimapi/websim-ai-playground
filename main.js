@@ -33,6 +33,16 @@ const state = {
       "Combo Master": 500,
       "Power Player": 1000,
       "Shape Shifter": 2000
+    },
+    frequencyBands: {
+      bass: { min: 20, max: 140 },
+      mid: { min: 140, max: 2000 },
+      treble: { min: 2000, max: 20000 }
+    },
+    visualEffects: {
+      beatIntensity: 0,
+      colorShift: 0,
+      waveform: []
     }
   },
   audio: {
@@ -70,58 +80,55 @@ function createDiamondPoints(cx, cy, size = 30) {
 // Core shape creation function
 function createShape() {
   const shape = state.config.shapes[Math.floor(Math.random() * state.config.shapes.length)];
-  const color = state.config.colors[Math.floor(Math.random() * state.config.colors.length)];
   const pos = randomPosition();
-  const points = Math.floor(Math.random() * 30) + 10;
+  const color = state.config.colors[Math.floor(Math.random() * state.config.colors.length)];
   
-  const specialProperties = {
-    isPowerup: Math.random() < 0.05,
-    specialEffect: null,
-    durability: 1,
-    chainReaction: false,
-    pointMultiplier: 1
-  };
+  const element = document.createElementNS("http://www.w3.org/2000/svg", 
+    shape === 'star' || shape === 'diamond' ? 'polygon' : shape);
   
-  const element = document.createElementNS("http://www.w3.org/2000/svg", shape === 'star' || shape === 'diamond' ? 'polygon' : shape);
+  // Enhanced shape properties with music reactivity
+  const musicReactiveScale = 1 + (state.audio.bassLevel * 0.5);
+  const size = 30 * musicReactiveScale;
   
   if (shape === 'circle') {
     element.setAttribute("cx", pos.x);
     element.setAttribute("cy", pos.y);
-    element.setAttribute("r", "30");
+    element.setAttribute("r", size);
   } else if (shape === 'rect') {
-    element.setAttribute("x", pos.x);
-    element.setAttribute("y", pos.y);
-    element.setAttribute("width", "60");
-    element.setAttribute("height", "60");
+    element.setAttribute("x", pos.x - size);
+    element.setAttribute("y", pos.y - size);
+    element.setAttribute("width", size * 2);
+    element.setAttribute("height", size * 2);
   } else if (shape === 'polygon') {
-    const points = `${pos.x},${pos.y - 30} ${pos.x + 26},${pos.y + 15} ${pos.x - 26},${pos.y + 15}`;
+    const points = `${pos.x},${pos.y - size} ${pos.x + size},${pos.y + size} ${pos.x - size},${pos.y + size}`;
     element.setAttribute("points", points);
   } else if (shape === 'star') {
-    element.setAttribute("points", createStarPoints(pos.x, pos.y));
+    element.setAttribute("points", createStarPoints(pos.x, pos.y, 5, size, size * 0.5));
   } else if (shape === 'diamond') {
-    element.setAttribute("points", createDiamondPoints(pos.x, pos.y));
+    element.setAttribute("points", createDiamondPoints(pos.x, pos.y, size));
   }
   
+  // Music-reactive colors and effects
+  const hueRotation = Math.floor(state.audio.midLevel * 360);
+  const brightness = 1 + state.audio.trebleLevel;
   element.setAttribute("fill", color);
-  element.setAttribute("data-shape", shape);
-  element.setAttribute("data-points", points);
+  element.style.filter = `hue-rotate(${hueRotation}deg) brightness(${brightness})`;
   
+  // Enhanced animation system
+  const baseSpeed = 2 / state.config.speed;
+  const musicSpeed = baseSpeed * (1 - state.audio.bassLevel * 0.5);
   const animations = ['pulse', 'spin', 'bounce', 'wobble', 'shake'];
   const randomAnim = animations[Math.floor(Math.random() * animations.length)];
-  element.style.animation = `${randomAnim} ${2 / state.config.speed}s infinite`;
+  element.style.animation = `${randomAnim} ${musicSpeed}s infinite`;
   
   element.addEventListener('click', handleShapeClick);
-  
-  element.dataset.specialProperties = JSON.stringify(specialProperties);
+  element.dataset.points = Math.floor(Math.random() * 30) + 10;
+  element.dataset.shape = shape;
   
   if (Math.random() < state.config.powerupChance) {
     element.classList.add('power-up');
     element.dataset.powerup = 'true';
   }
-  
-  // Add music-reactive properties
-  element.style.transition = 'all 0.1s ease';
-  element.dataset.musicReactive = 'true';
   
   return element;
 }
@@ -312,6 +319,11 @@ function updateUI() {
   comboElement.textContent = state.combo > 1 ? `Combo: x${state.combo}` : '';
   comboElement.style.opacity = state.combo > 1 ? '1' : '0';
   levelIndicator.textContent = `Level: ${state.level}`;
+  
+  // Add audio visualization updates
+  const canvas = document.getElementById('canvas');
+  canvas.style.filter = `hue-rotate(${state.config.visualEffects.colorShift}deg)`;
+  state.config.visualEffects.colorShift = (state.config.visualEffects.colorShift + 1) % 360;
 }
 
 // Level up function
@@ -349,6 +361,10 @@ async function init() {
   
   status.textContent = `Game Mode: Click shapes to score points! Power: ${state.power}%`;
   
+  // Initialize audio visualizer
+  createVisualizer();
+  
+  // Start the game loop
   gameLoop();
   updateUI();
 }
@@ -390,91 +406,102 @@ async function initAudio() {
     
     dataArray = new Uint8Array(analyser.frequencyBinCount);
     
-    createVisualizer();
     requestAnimationFrame(updateAudio);
   } catch (error) {
     console.error('Audio initialization failed:', error);
   }
 }
 
-function createVisualizer() {
-  const visualizer = document.getElementById('visualizer');
-  const barCount = 32;
-  const barWidth = 800 / barCount;
-  
-  for (let i = 0; i < barCount; i++) {
-    const bar = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-    bar.setAttribute('class', 'visualizer-bar');
-    bar.setAttribute('x', i * barWidth);
-    bar.setAttribute('y', 550);
-    bar.setAttribute('width', barWidth - 1);
-    bar.setAttribute('height', 0);
-    visualizer.appendChild(bar);
-  }
-}
-
+// Enhanced audio processing
 function updateAudio() {
   if (!audioContext || !state.gameActive) return;
   
   analyser.getByteFrequencyData(dataArray);
   
-  // Update frequency bands
-  state.audio.bassLevel = getAverageFrequency(0, 10);
-  state.audio.midLevel = getAverageFrequency(11, 20);
-  state.audio.trebleLevel = getAverageFrequency(21, 30);
+  // More precise frequency analysis
+  const bassSum = sumFrequencyRange(state.config.frequencyBands.bass.min, state.config.frequencyBands.bass.max);
+  const midSum = sumFrequencyRange(state.config.frequencyBands.mid.min, state.config.frequencyBands.mid.max);
+  const trebleSum = sumFrequencyRange(state.config.frequencyBands.treble.min, state.config.frequencyBands.treble.max);
   
-  // Beat detection
+  state.audio.bassLevel = bassSum / 255;
+  state.audio.midLevel = midSum / 255;
+  state.audio.trebleLevel = trebleSum / 255;
+  
+  // Enhanced beat detection
   const currentTime = Date.now();
+  const beatThreshold = 0.6 + (state.level * 0.05); // Dynamic threshold based on level
+  
   if (state.audio.bassLevel > beatThreshold && currentTime - lastBeatTime > beatCooldown) {
     state.audio.beatDetected = true;
+    state.config.visualEffects.beatIntensity = state.audio.bassLevel;
     lastBeatTime = currentTime;
     onBeat();
   } else {
     state.audio.beatDetected = false;
+    state.config.visualEffects.beatIntensity *= 0.95; // Smooth decay
   }
   
-  // Update visualizer
-  const bars = document.querySelectorAll('.visualizer-bar');
-  const step = Math.ceil(dataArray.length / bars.length);
-  
-  bars.forEach((bar, index) => {
-    const value = dataArray[index * step] / 255;
-    const height = value * 50;
-    bar.setAttribute('height', height);
-    bar.setAttribute('y', 550 - height);
-  });
+  // Update wave visualization
+  updateWaveform();
+  updateVisualizer();
   
   requestAnimationFrame(updateAudio);
 }
 
-function getAverageFrequency(start, end) {
+function sumFrequencyRange(minFreq, maxFreq) {
+  const nyquist = audioContext.sampleRate / 2;
+  const minIndex = Math.floor((minFreq / nyquist) * dataArray.length);
+  const maxIndex = Math.floor((maxFreq / nyquist) * dataArray.length);
+  
   let sum = 0;
-  for (let i = start; i <= end; i++) {
+  for (let i = minIndex; i <= maxIndex; i++) {
     sum += dataArray[i];
   }
-  return sum / (end - start + 1) / 255;
+  return sum / (maxIndex - minIndex + 1);
+}
+
+function updateWaveform() {
+  const bufferLength = analyser.frequencyBinCount;
+  const waveformData = new Uint8Array(bufferLength);
+  analyser.getByteTimeDomainData(waveformData);
+  state.config.visualEffects.waveform = Array.from(waveformData);
+}
+
+function updateVisualizer() {
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  const waveformData = state.config.visualEffects.waveform;
+  ctx.beginPath();
+  for (let i = 0; i < waveformData.length; i++) {
+    const x = i * canvas.width / waveformData.length;
+    const y = canvas.height / 2 + waveformData[i] * canvas.height / 256;
+    if (i === 0) {
+      ctx.moveTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+  }
+  ctx.stroke();
 }
 
 function onBeat() {
-  // Visual effects on beat
   document.getElementById('canvas').classList.add('beat-active');
-  setTimeout(() => {
-    document.getElementById('canvas').classList.remove('beat-active');
-  }, 100);
+  setTimeout(() => document.getElementById('canvas').classList.remove('beat-active'), 100);
   
-  // Gameplay effects
   state.elements.forEach(element => {
-    if (Math.random() < 0.2) {
+    if (Math.random() < 0.3) {
       element.classList.add('bass-boost');
       setTimeout(() => element.classList.remove('bass-boost'), 300);
     }
   });
   
-  // Modify game parameters based on music
-  state.config.speed = 1.6 + (state.audio.bassLevel * 0.5);
-  state.config.pointsPerClick = 10 + Math.floor(state.audio.midLevel * 20);
+  // Dynamic gameplay adjustments
+  state.config.speed = 1.6 + (state.audio.bassLevel * 0.8);
+  state.config.pointsPerClick = 10 + Math.floor(state.audio.midLevel * 30);
+  state.config.powerRegenRate = 0.2 + (state.audio.trebleLevel * 0.3);
   
-  // Special effects based on music intensity
   if (state.audio.bassLevel > 0.8) {
     triggerBassEffect();
   }
@@ -483,7 +510,7 @@ function onBeat() {
 function triggerBassEffect() {
   const elements = state.elements;
   elements.forEach(element => {
-    element.style.filter = `hue-rotate(${Math.random() * 360}deg)`;
+    element.style.filter = `hue-rotate(${Math随机() * 360}deg)`;
     setTimeout(() => element.style.filter = '', 300);
   });
 }
@@ -524,4 +551,6 @@ document.head.appendChild(originalStyle);
 
 init();
 
+window.createShape = createShape;
+window.init = init;
 window.playgroundState = state;
