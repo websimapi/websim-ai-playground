@@ -1,6 +1,6 @@
 // State management
 const state = {
-  iteration: 4,
+  iteration: 5,
   elements: [],
   score: 0,
   power: 100,
@@ -19,6 +19,39 @@ const state = {
     comboTimeout: 2000
   }
 };
+
+/*
+Future Gameplay Enhancement Ideas:
+1. Power-ups that randomly spawn:
+   - Time slowdown
+   - Double points
+   - Instant power refill
+   - Shape multiplication
+
+2. Special Events:
+   - "Gold Rush" - All shapes turn gold for bonus points
+   - "Chain Reaction" - Clicking one shape triggers nearby shapes
+   - "Shape Storm" - Rapid spawn of many shapes
+   - "Boss Battle" - Large complex shape that requires multiple clicks
+
+3. Progression System:
+   - Level system with increasing difficulty
+   - Unlock new shape types and colors
+   - Special abilities that charge up over time
+   - Achievements and challenges
+
+4. Multiplayer Features:
+   - Competitive mode with split screen
+   - Cooperative mode where players share power
+   - Global leaderboard
+   - Daily challenges
+
+5. Advanced Mechanics:
+   - Shape fusion - combine similar shapes
+   - Color matching bonuses
+   - Pattern recognition challenges
+   - Physics-based interactions between shapes
+*/
 
 // Generate random position within SVG bounds
 function randomPosition() {
@@ -48,10 +81,20 @@ function createDiamondPoints(cx, cy, size = 30) {
 
 // Create a random shape with game mechanics
 function createShape() {
+  // Enhanced shape creation with preparation for future features
   const shape = state.config.shapes[Math.floor(Math.random() * state.config.shapes.length)];
   const color = state.config.colors[Math.floor(Math.random() * state.config.colors.length)];
   const pos = randomPosition();
   const points = Math.floor(Math.random() * 30) + 10;
+  
+  // Future: Add special properties for power-ups and events
+  const specialProperties = {
+    isPowerup: Math.random() < 0.05, // 5% chance for future power-up implementation
+    specialEffect: null,
+    durability: 1, // Future: Some shapes might require multiple clicks
+    chainReaction: false,
+    pointMultiplier: 1
+  };
   
   const element = document.createElementNS("http://www.w3.org/2000/svg", shape === 'star' || shape === 'diamond' ? 'polygon' : shape);
   
@@ -85,6 +128,9 @@ function createShape() {
     element.addEventListener('click', handleShapeClick);
   }
   
+  // Store special properties for future use
+  element.dataset.specialProperties = JSON.stringify(specialProperties);
+  
   return element;
 }
 
@@ -108,6 +154,13 @@ function handleShapeClick(e) {
   
   state.score += points;
   state.power = Math.max(0, state.power - 10);
+  
+  // Future: Check for special properties and apply effects
+  const specialProperties = JSON.parse(e.target.dataset.specialProperties || '{}');
+  if (specialProperties.isPowerup) {
+    // Future: Implement power-up effects
+    console.log('Power-up clicked! Effects coming soon...');
+  }
   
   // Visual feedback
   const feedback = document.createElementNS("http://www.w3.org/2000/svg", "text");
@@ -144,13 +197,27 @@ function handleShapeClick(e) {
   updateUI();
 }
 
-// Game loop
+// Enhanced game loop with preparation for future features
 function gameLoop() {
   if (!state.gameActive) return;
   
   // Power management
   state.power = Math.min(100, state.power + state.config.powerRegenRate);
   updateUI();
+  
+  // Future: Special event timing system
+  const eventTriggerChance = 0.001; // 0.1% chance per frame
+  if (Math.random() < eventTriggerChance) {
+    // Future: Trigger special events
+    console.log('Special event ready to trigger!');
+  }
+  
+  // Future: Power-up spawn system
+  const powerupSpawnChance = 0.0005; // 0.05% chance per frame
+  if (Math.random() < powerupSpawnChance) {
+    // Future: Spawn power-up
+    console.log('Power-up ready to spawn!');
+  }
   
   // Random events
   if (Math.random() < 0.1) {
