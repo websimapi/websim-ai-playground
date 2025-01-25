@@ -116,3 +116,51 @@ body {
   25% { transform: translateX(-5px) rotate(-5deg); }
   75% { transform: translateX(5px) rotate(5deg); }
 }
+
+.power-up {
+  animation: glow 1.5s ease-in-out infinite !important;
+}
+
+@keyframes glow {
+  0%, 100% { filter: brightness(1) drop-shadow(0 0 5px rgba(255,255,255,0.5)); }
+  50% { filter: brightness(1.5) drop-shadow(0 0 15px rgba(255,255,255,0.8)); }
+}
+
+.gold-rush .shape {
+  fill: gold !important;
+  filter: drop-shadow(0 0 10px rgba(255,215,0,0.6));
+}
+
+.level-indicator {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  font-size: 1.2em;
+  color: #00ff99;
+  text-shadow: 0 0 10px rgba(0,255,153,0.5);
+}
+
+.achievement {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: rgba(0,0,0,0.8);
+  padding: 10px 20px;
+  border-radius: 8px;
+  border-left: 4px solid #00ff99;
+  animation: slideIn 0.5s ease-out;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.chain-reaction {
+  animation: explode 0.5s ease-out forwards !important;
+}
+
+@keyframes explode {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(2); opacity: 0; }
+}

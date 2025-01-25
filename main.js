@@ -1,4 +1,3 @@
-// State management
 const state = {
   iteration: 5,
   elements: [],
@@ -6,6 +5,13 @@ const state = {
   power: 100,
   combo: 0,
   gameActive: true,
+  level: 1,
+  achievements: new Set(),
+  powerups: [],
+  specialEvents: {
+    goldRush: false,
+    chainReaction: false
+  },
   config: {
     colors: ['#ff0066', '#00ff99', '#0066ff', '#ffcc00', '#ff9900', '#9933ff'],
     speed: 1.6,
@@ -16,42 +22,19 @@ const state = {
     pointsPerClick: 10,
     powerDrainRate: 0.5,
     powerRegenRate: 0.2,
-    comboTimeout: 2000
+    comboTimeout: 2000,
+    specialEventChance: 0.005,
+    powerupChance: 0.02,
+    chainReactionRadius: 100,
+    levelUpThreshold: 1000,
+    achievementPoints: {
+      "First Steps": 100,
+      "Combo Master": 500,
+      "Power Player": 1000,
+      "Shape Shifter": 2000
+    }
   }
 };
-
-/*
-Future Gameplay Enhancement Ideas:
-1. Power-ups that randomly spawn:
-   - Time slowdown
-   - Double points
-   - Instant power refill
-   - Shape multiplication
-
-2. Special Events:
-   - "Gold Rush" - All shapes turn gold for bonus points
-   - "Chain Reaction" - Clicking one shape triggers nearby shapes
-   - "Shape Storm" - Rapid spawn of many shapes
-   - "Boss Battle" - Large complex shape that requires multiple clicks
-
-3. Progression System:
-   - Level system with increasing difficulty
-   - Unlock new shape types and colors
-   - Special abilities that charge up over time
-   - Achievements and challenges
-
-4. Multiplayer Features:
-   - Competitive mode with split screen
-   - Cooperative mode where players share power
-   - Global leaderboard
-   - Daily challenges
-
-5. Advanced Mechanics:
-   - Shape fusion - combine similar shapes
-   - Color matching bonuses
-   - Pattern recognition challenges
-   - Physics-based interactions between shapes
-*/
 
 // Generate random position within SVG bounds
 function randomPosition() {
@@ -131,42 +114,102 @@ function createShape() {
   // Store special properties for future use
   element.dataset.specialProperties = JSON.stringify(specialProperties);
   
+  if (Math.random() < state.config.powerupChance) {
+    element.classList.add('power-up');
+    element.dataset.powerup = 'true';
+  }
+  
   return element;
+}
+
+function handlePowerup(element) {
+  const types = ['timeSlowdown', 'doublePoints', 'powerRefill', 'chainReaction'];
+  const type = types[Math.floor(Math.random() * types.length)];
+  
+  switch(type) {
+    case 'timeSlowdown':
+      state.config.speed *= 0.5;
+      setTimeout(() => state.config.speed *= 2, 5000);
+      break;
+    case 'doublePoints':
+      state.config.pointsPerClick *= 2;
+      setTimeout(() => state.config.pointsPerClick /= 2, 5000);
+      break;
+    case 'powerRefill':
+      state.power = 100;
+      break;
+    case 'chainReaction':
+      triggerChainReaction(element);
+      break;
+  }
+}
+
+function triggerChainReaction(sourceElement) {
+  const sourcePos = getElementPosition(sourceElement);
+  state.elements.forEach(element => {
+    const pos = getElementPosition(element);
+    const distance = Math.hypot(pos.x - sourcePos.x, pos.y - sourcePos.y);
+    if (distance < state.config.chainReactionRadius && element !== sourceElement) {
+      element.classList.add('chain-reaction');
+      setTimeout(() => handleShapeClick({ target: element }), 300);
+    }
+  });
+}
+
+function getElementPosition(element) {
+  const shape = element.getAttribute('data-shape');
+  return {
+    x: shape === 'circle' ? parseFloat(element.getAttribute('cx')) : parseFloat(element.getAttribute('x') || element.points[0].x),
+    y: shape === 'circle' ? parseFloat(element.getAttribute('cy')) : parseFloat(element.getAttribute('y') || element.points[0].y)
+  };
+}
+
+function checkAchievements() {
+  const achievements = {
+    "First Steps": state.score >= 100,
+    "Combo Master": state.combo >= 10,
+    "Power Player": state.power === 100 && state.score >= 500,
+    "Shape Shifter": state.score >= 1000
+  };
+
+  Object.entries(achievements).forEach(([name, condition]) => {
+    if (condition && !state.achievements.has(name)) {
+      state.achievements.add(name);
+      showAchievement(name);
+    }
+  });
+}
+
+function showAchievement(name) {
+  const achievement = document.createElement('div');
+  achievement.className = 'achievement';
+  achievement.textContent = `Achievement Unlocked: ${name}`;
+  document.body.appendChild(achievement);
+  setTimeout(() => achievement.remove(), 3000);
 }
 
 function handleShapeClick(e) {
   if (!state.gameActive || state.power < 10) return;
   
   const element = e.target;
-  const shape = element.getAttribute('data-shape');
+  
+  if (element.dataset.powerup === 'true') {
+    handlePowerup(element);
+  }
+  
+  // Original click handling
   const basePoints = parseInt(element.getAttribute('data-points'));
-  
-  // Update combo system
-  clearTimeout(state.comboTimeout);
-  state.combo++;
-  state.comboTimeout = setTimeout(() => {
-    state.combo = 0;
-    updateUI();
-  }, state.config.comboTimeout);
-  
   const comboMultiplier = 1 + (state.combo * 0.1);
   const points = Math.floor(basePoints * comboMultiplier);
   
   state.score += points;
   state.power = Math.max(0, state.power - 10);
   
-  // Future: Check for special properties and apply effects
-  const specialProperties = JSON.parse(e.target.dataset.specialProperties || '{}');
-  if (specialProperties.isPowerup) {
-    // Future: Implement power-up effects
-    console.log('Power-up clicked! Effects coming soon...');
-  }
-  
   // Visual feedback
   const feedback = document.createElementNS("http://www.w3.org/2000/svg", "text");
   const pos = {
-    x: shape === 'circle' ? parseFloat(element.getAttribute('cx')) : parseFloat(element.getAttribute('x') || element.points[0].x),
-    y: shape === 'circle' ? parseFloat(element.getAttribute('cy')) : parseFloat(element.getAttribute('y') || element.points[0].y)
+    x: element.getAttribute('data-shape') === 'circle' ? parseFloat(element.getAttribute('cx')) : parseFloat(element.getAttribute('x') || element.points[0].x),
+    y: element.getAttribute('data-shape') === 'circle' ? parseFloat(element.getAttribute('cy')) : parseFloat(element.getAttribute('y') || element.points[0].y)
   };
   
   feedback.setAttribute("x", pos.x);
@@ -187,6 +230,14 @@ function handleShapeClick(e) {
     easing: 'ease-out'
   }).onfinish = () => feedback.remove();
   
+  // Update combo system
+  clearTimeout(state.comboTimeout);
+  state.combo++;
+  state.comboTimeout = setTimeout(() => {
+    state.combo = 0;
+    updateUI();
+  }, state.config.comboTimeout);
+  
   // Replace clicked shape
   element.remove();
   const newShape = createShape();
@@ -195,6 +246,13 @@ function handleShapeClick(e) {
   state.elements.push(newShape);
   
   updateUI();
+  
+  // Check for level up
+  if (state.score >= state.level * state.config.levelUpThreshold) {
+    levelUp();
+  }
+  
+  checkAchievements();
 }
 
 // Enhanced game loop with preparation for future features
@@ -206,14 +264,14 @@ function gameLoop() {
   updateUI();
   
   // Future: Special event timing system
-  const eventTriggerChance = 0.001; // 0.1% chance per frame
+  const eventTriggerChance = state.config.specialEventChance; // 
   if (Math.random() < eventTriggerChance) {
     // Future: Trigger special events
     console.log('Special event ready to trigger!');
   }
   
   // Future: Power-up spawn system
-  const powerupSpawnChance = 0.0005; // 0.05% chance per frame
+  const powerupSpawnChance = state.config.powerupChance; // 
   if (Math.random() < powerupSpawnChance) {
     // Future: Spawn power-up
     console.log('Power-up ready to spawn!');
@@ -239,15 +297,35 @@ function updateUI() {
   const scoreElement = document.querySelector('.score');
   const powerFill = document.querySelector('.power-fill');
   const comboElement = document.querySelector('.combo');
+  const levelIndicator = document.querySelector('.level-indicator');
   
   scoreElement.textContent = `Score: ${state.score}`;
   powerFill.style.transform = `scaleX(${state.power / 100})`;
   comboElement.textContent = state.combo > 1 ? `Combo: x${state.combo}` : '';
   comboElement.style.opacity = state.combo > 1 ? '1' : '0';
+  levelIndicator.textContent = `Level: ${state.level}`;
+}
+
+// Level up function
+function levelUp() {
+  state.level++;
+  state.config.complexity++;
+  state.config.speed *= 1.1;
+  
+  // Visual feedback
+  const feedback = document.createElement('div');
+  feedback.textContent = `Level Up! ${state.level}`;
+  feedback.className = 'level-up-feedback';
+  document.body.appendChild(feedback);
+  setTimeout(() => feedback.remove(), 2000);
 }
 
 // Initialize the playground
 function init() {
+  const levelIndicator = document.createElement('div');
+  levelIndicator.className = 'level-indicator';
+  document.body.appendChild(levelIndicator);
+  
   const content = document.getElementById('dynamic-content');
   const status = document.getElementById('status');
   
